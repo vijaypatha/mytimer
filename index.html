@@ -329,6 +329,7 @@
             recognition = new SpeechRecognition();
             recognition.continuous = true; // Keep listening
             recognition.interimResults = true; // Get results while speaking
+            recognition.lang = 'en-US'; // Explicitly set language
 
             recognition.onstart = function() {
                 statusMessage.textContent = "Listening... Say 'start a timer for 5 minutes'.";
@@ -366,17 +367,13 @@
                     statusMessage.textContent = "No speech detected. Please speak clearly into your microphone.";
                 } else if (event.error === 'not-allowed') {
                     statusMessage.textContent = "Microphone access denied. Please allow microphone access in your browser settings.";
+                    // Do NOT attempt to restart if permission is denied
                 } else {
-                    statusMessage.textContent = `Speech recognition error: ${event.error}. Please ensure microphone access is granted.`;
-                }
-
-                // Attempt to restart recognition if it stops due to an error, but not if permission is denied
-                if (event.error !== 'not-allowed') {
+                    statusMessage.textContent = `Speech recognition error: ${event.error}. Attempting restart.`;
+                    // For other errors, attempt restart
                     console.log("Attempting to restart speech recognition after error...");
-                    // Add a small delay before restarting to prevent rapid restarts
                     setTimeout(() => {
                         try {
-                            // Only restart if not already listening
                             if (recognition && recognition.readyState !== recognition.STATE_LISTENING) {
                                 recognition.start();
                             }
@@ -388,21 +385,30 @@
             };
 
             recognition.onend = function() {
-                console.log("Speech recognition ended. Checking if restart is needed...");
-                // Automatically restart recognition if it stops, unless explicitly stopped by user command
-                // or if it's not allowed.
-                // Add a small delay before restarting to prevent rapid restarts
-                if (recognition && recognition.readyState !== recognition.STATE_LISTENING && !recognition.manuallyStopped) {
-                     setTimeout(() => {
+                console.log("Speech recognition ended.");
+                // If it wasn't explicitly stopped by a voice command
+                if (!recognition.manuallyStopped) {
+                    console.log("Recognition not manually stopped. Attempting to restart...");
+                    // A small delay before attempting to restart to avoid race conditions
+                    setTimeout(() => {
                         try {
-                            recognition.start();
+                            // Check if recognition object still exists and is not already listening
+                            if (recognition && recognition.readyState !== recognition.STATE_LISTENING) {
+                                recognition.start();
+                                console.log("Speech recognition restarted automatically.");
+                                statusMessage.textContent = "Listening... Say 'start a timer for 5 minutes'.";
+                            } else {
+                                console.log("Recognition already listening or null, not restarting from onend.");
+                            }
                         } catch (e) {
-                            console.error("Could not restart recognition on end:", e);
+                            console.error("Error restarting recognition from onend:", e);
+                            statusMessage.textContent = "Could not restart microphone. Please check permissions.";
                         }
-                    }, 1000); // 1 second delay
-                } else if (recognition.manuallyStopped) {
-                     statusMessage.textContent = "Speech recognition stopped. Click 'Start Voice & Timer' to re-enable.";
-                     recognition.manuallyStopped = false; // Reset flag
+                    }, 500); // 500ms delay
+                } else {
+                    statusMessage.textContent = "Speech recognition stopped. Click 'Start Voice & Timer' to re-enable.";
+                    recognition.manuallyStopped = false; // Reset the flag
+                    console.log("Recognition manually stopped. Not restarting.");
                 }
             };
         }
@@ -471,7 +477,7 @@
             if (recognition && recognition.readyState !== recognition.STATE_LISTENING) {
                 try {
                     recognition.start();
-                    statusMessage.textContent = "Listening... Say 'start a timer for 5 minutes'."; // Update status immediately
+                    statusMessage.textContent = "Listening... Please say your command now."; // Update status immediately
                     console.log("Speech recognition started via button click.");
                 } catch (e) {
                     console.error("Could not start recognition from button click:", e);
@@ -489,8 +495,8 @@
                 if (totalSeconds === 0) {
                     const defaultDuration = 5; // Start with a 5-second timer for demonstration
                     startTimer(defaultDuration);
-                    statusMessage.textContent = `Starting default ${defaultDuration} seconds timer. Say 'start a timer for X minutes' to set a custom time.`;
-                    speak(`Starting default ${defaultDuration} seconds timer.`);
+                    statusMessage.textContent = `Starting default ${defaultDuration} seconds timer. Now listening for commands like 'start a timer for X minutes'.`;
+                    speak(`Starting default ${defaultDuration} seconds timer. Please say your command.`);
                 } else {
                     // This case should ideally not be hit if totalSeconds is managed correctly
                     // but if it is, it means a timer was set but not running/paused.
