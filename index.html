@@ -3,21 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vijay's Timer</title>
+    <title>Voice Timer</title>
+    <link id="favicon" rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⏱️</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-    </style>
+    <style> body { font-family: 'Inter', sans-serif; } </style>
 </head>
 <body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
 
     <div class="w-full max-w-md bg-gray-800 rounded-2xl shadow-2xl p-8 flex flex-col gap-6">
         <div class="text-center">
             <h1 class="text-3xl font-bold text-gray-100">Vijay's Timer</h1>
-            <p class="text-gray-400 mt-2">Try saying "set a timer for 5 minutes".</p>
+            <p class="text-gray-400 mt-2">Try saying "set a timer for 2 minutes".</p>
         </div>
 
         <div id="timerDisplay" class="text-7xl font-bold text-center tracking-wider py-4 text-gray-100">00:00</div>
@@ -38,10 +35,11 @@
         const timerDisplay = document.getElementById('timerDisplay');
         const statusMessage = document.getElementById('statusMessage');
         const mainButton = document.getElementById('mainButton');
-        
+        const favicon = document.getElementById('favicon');
+
         let totalSeconds = 0, intervalId = null, isPaused = false, isRunning = false;
         
-        // --- API Setup ---
+        // --- API & Audio Setup ---
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition;
         const synth = window.speechSynthesis;
@@ -54,34 +52,90 @@
             recognition.lang = 'en-US';
         }
 
-        // --- Core Functions ---
+        // --- ✨ 1. New Visual/Audio Alert Functions ---
 
-        function unlockAudio() {
-            if (isAudioUnlocked || !SpeechRecognition) return;
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const buffer = audioContext.createBuffer(1, 1, 22050);
-            const source = audioContext.createBufferSource();
-            source.buffer = buffer;
-            source.connect(audioContext.destination);
-            source.start(0);
-            isAudioUnlocked = true;
-            console.log("Audio unlocked for speech and sounds.");
-        }
-        
-        function speak(text) {
-            if (!isAudioUnlocked) return;
-            if (synth.speaking) synth.cancel();
-            synth.speak(new SpeechSynthesisUtterance(text));
+        // Creates a colored circle favicon to show timer status in the tab.
+        function updateFavicon(color = null) {
+            if (!color) {
+                favicon.href = "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⏱️</text></svg>";
+                return;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            ctx.beginPath();
+            ctx.arc(16, 16, 14, 0, 2 * Math.PI);
+            ctx.fillStyle = color;
+            ctx.fill();
+            favicon.href = canvas.toDataURL('image/png');
         }
 
-        function playDingSound() {
+        // Plays a ding with a specific pitch. Higher pitches create more urgency.
+        function playDingSound(pitch = 987.77, duration = 1.0) {
             if (!isAudioUnlocked) return;
             const o = audioContext.createOscillator(), g = audioContext.createGain();
-            o.connect(g); g.connect(audioContext.destination); o.type = 'sine';
-            o.frequency.setValueAtTime(987.77, audioContext.currentTime);
-            g.gain.setValueAtTime(0.8, audioContext.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 2.5);
-            o.start(); o.stop(audioContext.currentTime + 2.5);
+            o.connect(g); g.connect(audioContext.destination);
+            o.type = 'sine'; o.frequency.setValueAtTime(pitch, audioContext.currentTime);
+            g.gain.setValueAtTime(0.7, audioContext.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + duration);
+            o.start(); o.stop(audioContext.currentTime + duration);
+        }
+
+        // Shows a desktop notification when the timer finishes.
+        function showCompletionNotification() {
+            if (!('Notification' in window)) return; // Browser doesn't support notifications
+
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    new Notification('Timer Finished!', {
+                        body: 'Your timer has ended. Click here to return to the app.',
+                        icon: favicon.href, // Use the red dot as the icon
+                        requireInteraction: true // Keep notification until user interacts
+                    });
+                }
+            });
+        }
+
+        // --- Core Application Logic ---
+
+        function startTimer(duration) {
+            clearInterval(intervalId);
+            totalSeconds = duration;
+            isRunning = true; isPaused = false;
+            updateDisplay();
+            mainButton.textContent = "Pause Timer";
+            mainButton.disabled = false;
+            
+            speak(`Timer started for ${Math.floor(duration/60)} minutes.`);
+
+            intervalId = setInterval(() => {
+                totalSeconds--;
+                updateDisplay();
+
+                // --- ✨ 2. New Progressive Alert Logic ---
+                if (totalSeconds === 60) {
+                    updateFavicon('yellow');
+                    playDingSound(659.25); // E5 note
+                } else if (totalSeconds === 30) {
+                    updateFavicon('orange');
+                    playDingSound(783.99); // G5 note
+                } else if (totalSeconds <= 0) {
+                    clearInterval(intervalId);
+                    isRunning = false;
+                    statusMessage.innerHTML = "&#x1F389; Timer Finished! &#x1F389;";
+                    mainButton.textContent = "Start Voice Control";
+                    mainButton.disabled = false;
+                    updateFavicon('red'); // Final red indicator
+                    updateDisplay();
+                    
+                    // Final alert sequence
+                    playDingSound(1046.50, 0.5); // C6 note
+                    setTimeout(() => playDingSound(1318.51, 1.5), 200); // E6 note
+                    showCompletionNotification();
+                    speak(`Your timer is finished.`);
+                }
+            }, 1000);
         }
 
         function updateDisplay() {
@@ -91,90 +145,35 @@
             
             timerDisplay.textContent = timeString;
 
-            // --- ✨ New Feature: Update Browser Tab Title ---
-            if (isRunning || totalSeconds > 0) {
+            if (isRunning || (totalSeconds > 0 && isPaused)) {
                 document.title = `${timeString} - Timer`;
             } else {
                 document.title = 'Voice-Cued Timer'; // Reset title
+                updateFavicon(null); // Reset favicon
             }
         }
-        
-        function startTimer(duration) {
-            clearInterval(intervalId);
-            totalSeconds = duration;
-            isRunning = true; isPaused = false;
-            updateDisplay();
-            mainButton.textContent = "Pause Timer";
-            mainButton.disabled = false;
-            
-            const m = Math.floor(duration / 60), s = duration % 60;
-            let a = `Timer started for `;
-            if (m > 0) a += `${m} minute${m > 1 ? 's' : ''}`;
-            if (s > 0) a += ` ${s} second${s > 1 ? 's' : ''}`;
-            statusMessage.textContent = a.trim() + '.';
-            speak(a);
 
-            intervalId = setInterval(() => {
-                totalSeconds--;
-                updateDisplay();
-                if (totalSeconds <= 0) {
-                    clearInterval(intervalId);
-                    isRunning = false;
-                    statusMessage.innerHTML = "&#x1F389; Timer Finished! &#x1F389;";
-                    mainButton.textContent = "Start Voice Control";
-                    mainButton.disabled = false;
-                    updateDisplay(); // Final update to clear title
-                    playDingSound();
-                    speak(`Your timer is finished.`);
-                }
-            }, 1000);
+        // --- Event Listeners and Helper Functions ---
+        function unlockAudio() {
+            if (isAudioUnlocked) return;
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const buffer = audioContext.createBuffer(1, 1, 22050);
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer; source.connect(audioContext.destination); source.start(0);
+            isAudioUnlocked = true;
         }
 
-        function togglePause() {
-            if (!isRunning) return;
-            isPaused = !isPaused;
-            mainButton.textContent = isPaused ? "Resume Timer" : "Pause Timer";
-            statusMessage.textContent = isPaused ? "Timer is paused." : "Timer resumed.";
-            speak(isPaused ? "Paused." : "Resumed.");
-        }
-        
-        function processVoiceCommand(command) {
-            const timerMatch = command.match(/(?:set|start) (?:a )?timer for (\d+) (minute|second)s?/);
+        mainButton.addEventListener('click', () => {
+            unlockAudio();
+            if (isRunning) { togglePause(); } 
+            else { try { recognition.start(); } catch (e) {} }
+        });
 
-            if (timerMatch) {
-                const value = parseInt(timerMatch[1], 10);
-                const unit = timerMatch[2];
-                const duration = unit === 'minute' ? value * 60 : value;
-                startTimer(duration);
-            } else if (command.includes('pause timer')) {
-                if (isRunning) togglePause();
-            } else if (command.includes('resume timer')) {
-                if (isRunning) togglePause();
-            } else {
-                speak("Sorry, I didn't recognize that command.");
-            }
-        }
-        
-        // --- Event Listeners ---
-        if (recognition) {
-            mainButton.addEventListener('click', () => {
-                unlockAudio();
-                if (isRunning) {
-                    togglePause();
-                } else {
-                    try { recognition.start(); } catch (e) { console.error(e); }
-                }
-            });
-
-            recognition.onstart = () => { mainButton.textContent = "Listening..."; mainButton.disabled = true; statusMessage.textContent = "Say your command..."; };
-            recognition.onresult = (event) => { const command = event.results[0][0].transcript.toLowerCase().trim(); statusMessage.textContent = `Heard: "${command}"`; processVoiceCommand(command); };
-            recognition.onend = () => { if (!isRunning) { mainButton.textContent = "Start Voice Control"; mainButton.disabled = false; } };
-            recognition.onerror = (event) => { statusMessage.textContent = "Speech error. Please try again."; };
-        } else {
-             mainButton.textContent = "Voice Not Supported";
-             mainButton.disabled = true;
-             statusMessage.textContent = "Please use a browser like Chrome or Edge for voice control.";
-        }
+        // Other functions (speak, togglePause, processVoiceCommand, etc.)
+        function speak(text) { if (!isAudioUnlocked) return; if (synth.speaking) synth.cancel(); synth.speak(new SpeechSynthesisUtterance(text)); }
+        function togglePause() { if (!isRunning) return; isPaused = !isPaused; mainButton.textContent = isPaused ? "Resume Timer" : "Pause Timer"; statusMessage.textContent = isPaused ? "Timer is paused." : "Timer resumed."; speak(isPaused ? "Paused." : "Resumed."); }
+        function processVoiceCommand(command) { const timerMatch = command.match(/(?:set|start).*?(\d+)\s*(minute|second)/); if (timerMatch) { const value = parseInt(timerMatch[1], 10); const unit = timerMatch[2]; const duration = unit === 'minute' ? value * 60 : value; startTimer(duration); } else if (command.includes('pause')) { if (isRunning) togglePause(); } else if (command.includes('resume')) { if (isRunning) togglePause(); } else { speak("Command not recognized."); } }
+        if (recognition) { recognition.onstart = () => { mainButton.textContent = "Listening..."; mainButton.disabled = true; }; recognition.onresult = (e) => processVoiceCommand(e.results[0][0].transcript.toLowerCase()); recognition.onend = () => { if (!isRunning) { mainButton.textContent = "Start Voice Control"; mainButton.disabled = false; } }; } else { mainButton.textContent = "Voice Not Supported"; mainButton.disabled = true; }
     </script>
 </body>
 </html>
