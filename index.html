@@ -461,6 +461,7 @@
             if (!recognition) {
                 initSpeechRecognition(); // Initialize recognition object
             }
+            // Only start recognition if it's not already listening
             if (recognition && recognition.readyState !== recognition.STATE_LISTENING) {
                 try {
                     recognition.start();
@@ -478,12 +479,17 @@
             } else if (isRunning && isPaused) {
                 resumeTimer(); // If running and paused, then resume
             } else {
-                // If not running, assume user wants to start a default or previously set timer
-                // Or prompt for duration if totalSeconds === 0
+                // If not running and totalSeconds is 0 (initial state or after reset)
                 if (totalSeconds === 0) {
-                    // No need to speak here, initSpeechRecognition onstart handles it
+                    const defaultDuration = 5; // Start with a 5-second timer for demonstration
+                    startTimer(defaultDuration);
+                    statusMessage.textContent = `Starting default ${defaultDuration} seconds timer. Say 'start a timer for X minutes' to set a custom time.`;
+                    speak(`Starting default ${defaultDuration} seconds timer.`);
                 } else {
-                    startTimer(); // Start with existing totalSeconds (if any)
+                    // This case should ideally not be hit if totalSeconds is managed correctly
+                    // but if it is, it means a timer was set but not running/paused.
+                    // We'll assume it needs to be started/resumed.
+                    startTimer();
                 }
             }
         });
