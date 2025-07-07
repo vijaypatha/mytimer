@@ -4,323 +4,249 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voice-Cued Timer</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        /* Custom styles for Inter font and general layout */
+        /* Use Inter font for a cleaner look */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #1a202c; /* Dark background */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-        .timer-container {
-            background-color: #2d3748; /* Slightly lighter dark for container */
-            border-radius: 1.5rem; /* Rounded corners */
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3); /* Darker shadow */
-            padding: 2.5rem;
-            max-width: 500px;
-            width: 100%;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-        }
-        .timer-display {
-            font-size: 5rem; /* Large font for timer */
-            font-weight: 700; /* Bold font */
-            color: #e2e8f0; /* Light text for display */
-            letter-spacing: 0.1em;
-            margin-bottom: 1.5rem;
-            min-height: 80px; /* Ensure consistent height */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .status-message {
-            min-height: 40px; /* Ensure consistent height */
-            color: #a0aec0; /* Lighter gray for status message */
-            font-size: 1.1rem;
-            margin-top: 1rem;
-        }
-        .control-buttons button {
-            background-color: #667eea; /* Slightly brighter indigo for buttons */
-            color: white;
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.75rem; /* Rounded corners */
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.3s ease, transform 0.1s ease;
-            box-shadow: 0 4px 10px rgba(102, 126, 234, 0.2);
-            min-width: 180px; /* Ensure button has enough width for text */
-        }
-        .control-buttons button:hover {
-            background-color: #5a67d8; /* Darker indigo on hover */
-            transform: translateY(-2px);
-        }
-        .control-buttons button:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 5px rgba(102, 126, 234, 0.3);
-        }
-        .control-buttons button:disabled {
-            background-color: #4a5568; /* Darker gray for disabled buttons */
-            color: #a0aec0;
-            cursor: not-allowed;
-            box-shadow: none;
-            transform: none;
         }
     </style>
 </head>
-<body>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
 
-    <div class="timer-container">
-        <h1 class="text-3xl font-bold text-gray-100">Voice-Cued Timer</h1>
-        <p class="text-gray-400">Say "start a timer for 5 minutes" or "set time for 1 min"</p>
-
-        <div id="timerDisplay" class="timer-display">00:00</div>
-
-        <div id="statusMessage" class="status-message">
-            Click 'Start Voice & Timer' to begin.
+    <div class="w-full max-w-md bg-gray-800 rounded-2xl shadow-2xl p-8 flex flex-col gap-6">
+        <div class="text-center">
+            <h1 class="text-3xl font-bold text-gray-100">Voice-Cued Timer</h1>
+            <p class="text-gray-400 mt-2">Say "set timer for 1 minute" after starting voice control.</p>
         </div>
 
-        <div class="control-buttons flex justify-center gap-4 mt-4">
-            <button id="mainButton">Start Voice & Timer</button>
+        <div id="timerDisplay" class="text-7xl font-bold text-center tracking-wider py-4 text-gray-100">00:00</div>
+
+        <div id="statusMessage" class="text-center text-gray-300 min-h-[40px]">
+            Click 'Start Voice Control' to begin.
+        </div>
+
+        <div class="control-buttons flex flex-col sm:flex-row justify-center gap-4 mt-4">
+            <button id="mainButton" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition-all duration-300 ease-in-out shadow-lg focus:outline-none focus:ring-4 focus:ring-indigo-400">
+                Start Voice Control
+            </button>
+            <button id="musicButton" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-lg transition-all duration-300 ease-in-out shadow-lg focus:outline-none focus:ring-4 focus:ring-gray-500">
+                Play Music
+            </button>
         </div>
     </div>
 
+    <audio id="backgroundMusic" loop>
+        <source src="https://cdn.pixabay.com/download/audio/2022/11/22/audio_74c75521b1.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+
     <script>
-    // Get DOM elements
-    const timerDisplay = document.getElementById('timerDisplay');
-    const statusMessage = document.getElementById('statusMessage');
-    const mainButton = document.getElementById('mainButton');
+        // --- DOM Elements ---
+        const timerDisplay = document.getElementById('timerDisplay');
+        const statusMessage = document.getElementById('statusMessage');
+        const mainButton = document.getElementById('mainButton');
+        const musicButton = document.getElementById('musicButton');
+        const backgroundMusic = document.getElementById('backgroundMusic');
 
-    // Timer variables
-    let totalSeconds = 0;
-    let intervalId = null;
-    let isPaused = false;
-    let isRunning = false;
-    let initialDurationSeconds = 0;
+        // --- State Variables ---
+        let totalSeconds = 0;
+        let intervalId = null;
+        let isPaused = false;
+        let isRunning = false;
+        let isMusicPlaying = false;
 
-    // Speech Recognition setup
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const SpeechSynthesisUtterance = window.SpeechSynthesisUtterance;
-    const synth = window.speechSynthesis;
-    let recognition = null;
-    let isRecognitionActive = false; // Flag to track recognition state
+        // --- API Setup ---
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        const synth = window.speechSynthesis;
+        let audioContext;
 
-    // AudioContext for sound
-    let audioContext = null;
-
-    // --- Core Timer Functions ---
-
-    function updateDisplay() {
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
-        timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    }
-
-    function startTimer(durationInSeconds) {
-        if (isRunning && !isPaused) return; // Already running
-
-        // Clear any existing timer
-        clearInterval(intervalId);
-
-        totalSeconds = durationInSeconds;
-        initialDurationSeconds = durationInSeconds;
-        isRunning = true;
-        isPaused = false;
-
-        updateDisplay(); // Show initial time immediately
-        mainButton.textContent = "Pause Timer";
-        mainButton.disabled = false; // Enable button for pause control
-
-        const minutes = Math.floor(durationInSeconds / 60);
-        const seconds = durationInSeconds % 60;
-        const startAnnouncement = `Timer started for ${minutes > 0 ? `${minutes} minutes` : ''} ${seconds > 0 ? `${seconds} seconds` : ''}.`;
-        statusMessage.textContent = startAnnouncement;
-        speak(startAnnouncement);
-
-        intervalId = setInterval(() => {
-            if (isPaused) return;
-
-            totalSeconds--;
-            updateDisplay();
-
-            if (totalSeconds <= 0) {
-                clearInterval(intervalId);
-                isRunning = false;
-                statusMessage.textContent = "Timer Finished!";
-                mainButton.textContent = "Start Voice Recognition";
-                mainButton.disabled = false; // Re-enable for starting voice again
-                playDingSound();
-                speak(`Your ${initialDurationSeconds >= 60 ? `${Math.floor(initialDurationSeconds/60)} minute` : `${initialDurationSeconds} second`} timer is finished.`);
-            }
-        }, 1000);
-    }
-
-    function pauseTimer() {
-        if (!isRunning || isPaused) return;
-        isPaused = true;
-        mainButton.textContent = "Resume Timer";
-        statusMessage.textContent = "Timer paused.";
-        speak("Timer paused.");
-    }
-
-    function resumeTimer() {
-        if (!isRunning || !isPaused) return;
-        isPaused = false;
-        mainButton.textContent = "Pause Timer";
-        statusMessage.textContent = "Timer resumed.";
-        speak("Timer resumed.");
-    }
-
-    function resetTimer() {
-        clearInterval(intervalId);
-        intervalId = null;
-        totalSeconds = 0;
-        initialDurationSeconds = 0;
-        isPaused = false;
-        isRunning = false;
-        updateDisplay();
-        mainButton.textContent = "Start Voice Recognition";
-        mainButton.disabled = false;
-        statusMessage.textContent = "Timer reset. Start voice recognition to set a new one.";
-        speak("Timer reset.");
-    }
-
-    // --- Audio and Speech Functions ---
-
-    function playDingSound() {
-        if (!audioContext) return;
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
-        gainNode.gain.setValueAtTime(1.0, audioContext.currentTime);
-        oscillator.start();
-        gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 1.0);
-        oscillator.stop(audioContext.currentTime + 1.0);
-    }
-
-    function speak(text) {
-        if (synth.speaking) {
-            synth.cancel();
-        }
-        const utterThis = new SpeechSynthesisUtterance(text);
-        synth.speak(utterThis);
-    }
-
-    function initSpeechRecognition() {
+        // --- 1. Browser Compatibility Check ---
+        // This block checks if the browser supports the Web Speech API and disables the main button if it doesn't.
         if (!SpeechRecognition) {
-            statusMessage.textContent = "Speech Recognition not supported in this browser.";
+            mainButton.textContent = "Not Supported";
             mainButton.disabled = true;
-            return;
-        }
-
-        recognition = new SpeechRecognition();
-        recognition.continuous = false; // Process single commands
-        recognition.interimResults = false;
-        recognition.lang = 'en-US';
-
-        recognition.onstart = () => {
-            isRecognitionActive = true;
-            mainButton.textContent = "Listening...";
-            mainButton.disabled = true; // Disable while listening
-            statusMessage.textContent = "Listening... Say a command.";
-        };
-
-        recognition.onresult = (event) => {
-            const command = event.results[0][0].transcript.toLowerCase().trim();
-            statusMessage.textContent = `Recognized: "${command}"`;
-            processVoiceCommand(command);
-        };
-
-        recognition.onerror = (event) => {
-            console.error('Speech recognition error:', event.error);
-            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-                statusMessage.textContent = "Microphone access denied. Please enable it in browser settings.";
-            } else {
-                statusMessage.textContent = "Error listening. Please try again.";
-            }
-        };
-
-        recognition.onend = () => {
-            isRecognitionActive = false;
-            // Only re-enable the button if a timer is not actively running
-            if (!isRunning) {
-                mainButton.textContent = "Start Voice Recognition";
-                mainButton.disabled = false;
-            }
-        };
-    }
-
-    function processVoiceCommand(command) {
-        const startCommandMatch = command.match(/(?:start|set) (?:a )?timer for (\d+) (minute|second)s?/);
-
-        if (startCommandMatch) {
-            const value = parseInt(startCommandMatch[1]);
-            const unit = startCommandMatch[2];
-            const durationInSeconds = unit === 'minute' ? value * 60 : value;
-            startTimer(durationInSeconds);
-        } else if (command.includes('pause')) {
-            pauseTimer();
-        } else if (command.includes('resume')) {
-            resumeTimer();
-        } else if (command.includes('reset')) {
-            resetTimer();
+            statusMessage.textContent = "Voice control is not supported on this browser. Please try Chrome or Edge.";
         } else {
-            statusMessage.textContent = `Command not recognized. Try "set timer for 1 minute".`;
-            speak("Sorry, I didn't recognize that command.");
-        }
-    }
-
-    // --- Main Event Listener ---
-
-    mainButton.addEventListener('click', () => {
-        // 1. Initialize Audio on first interaction
-        if (!audioContext) {
-            audioContext = new(window.AudioContext || window.webkitAudioContext)();
+            recognition = new SpeechRecognition();
+            recognition.continuous = false; // Process single, distinct commands
+            recognition.lang = 'en-US';
         }
 
-        // 2. Handle Timer controls if a timer is running
-        if (isRunning) {
-            if (isPaused) {
-                resumeTimer();
+        // --- 2. Longer, More Pleasant Ding Sound ---
+        // This function creates a richer, 2.5-second ding sound when the timer finishes.
+        function playDingSound() {
+            if (!audioContext) return;
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(987.77, audioContext.currentTime); // B5 note for a brighter sound
+            gainNode.gain.setValueAtTime(0.8, audioContext.currentTime);
+
+            const dingDuration = 2.5; // Increased duration to 2.5 seconds
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + dingDuration);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + dingDuration);
+        }
+
+        // --- Core App Logic (Timer, Speech, etc.) ---
+        function updateDisplay() {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function speak(text) {
+            if (synth.speaking) synth.cancel();
+            const utterThis = new SpeechSynthesisUtterance(text);
+            synth.speak(utterThis);
+        }
+
+        function startTimer(duration) {
+            clearInterval(intervalId);
+            totalSeconds = duration;
+            isRunning = true;
+            isPaused = false;
+            updateDisplay();
+            mainButton.textContent = "Pause Timer";
+            mainButton.disabled = false;
+
+            const minutes = Math.floor(duration / 60);
+            const seconds = duration % 60;
+            let announcement = `Timer started for `;
+            if (minutes > 0) announcement += `${minutes} minute${minutes > 1 ? 's' : ''}`;
+            if (seconds > 0) announcement += ` ${seconds} second${seconds > 1 ? 's' : ''}`;
+            
+            statusMessage.textContent = announcement.trim() + '.';
+            speak(announcement);
+
+            intervalId = setInterval(() => {
+                totalSeconds--;
+                updateDisplay();
+                if (totalSeconds <= 0) {
+                    clearInterval(intervalId);
+                    isRunning = false;
+                    if (isMusicPlaying) {
+                        backgroundMusic.pause();
+                        isMusicPlaying = false;
+                        musicButton.textContent = "Play Music";
+                    }
+                    statusMessage.innerHTML = "&#x1F389; Timer Finished! &#x1F389;"; // Confetti emoji
+                    mainButton.textContent = "Start Voice Control";
+                    mainButton.disabled = false;
+                    playDingSound();
+                    speak(`Your timer is finished.`);
+                }
+            }, 1000);
+        }
+
+        function togglePause() {
+            if (!isRunning) return;
+            isPaused = !isPaused;
+            mainButton.textContent = isPaused ? "Resume Timer" : "Pause Timer";
+            statusMessage.textContent = isPaused ? "Timer is paused." : "Timer resumed.";
+            speak(isPaused ? "Paused." : "Resumed.");
+        }
+
+        function resetTimer() {
+            clearInterval(intervalId);
+            isRunning = false;
+            isPaused = false;
+            totalSeconds = 0;
+            updateDisplay();
+            mainButton.textContent = "Start Voice Control";
+            mainButton.disabled = false;
+            statusMessage.textContent = "Timer reset. Click to enable voice commands.";
+            speak("Timer reset.");
+        }
+
+        function processVoiceCommand(command) {
+            const timerMatch = command.match(/set timer for (\d+) (minute|second)s?/);
+            if (timerMatch) {
+                const value = parseInt(timerMatch[1], 10);
+                const unit = timerMatch[2];
+                const duration = unit === 'minute' ? value * 60 : value;
+                startTimer(duration);
+            } else if (command.includes('pause')) {
+                togglePause();
+            } else if (command.includes('resume')) {
+                togglePause();
+            } else if (command.includes('reset')) {
+                resetTimer();
             } else {
-                pauseTimer();
-            }
-            return; // Stop further execution
-        }
-
-        // 3. Handle Voice Recognition if no timer is running
-        if (!recognition) {
-            initSpeechRecognition();
-        }
-
-        if (recognition && !isRecognitionActive) {
-            try {
-                recognition.start();
-            } catch (e) {
-                console.error("Could not start recognition:", e);
-                statusMessage.textContent = "Could not start microphone. Check permissions.";
+                statusMessage.textContent = `Command not recognized. Try again.`;
+                speak("Sorry, I didn't get that.");
             }
         }
-    });
 
-    // Initial state setup
-    window.onload = () => {
-        mainButton.textContent = "Start Voice Recognition";
-        statusMessage.textContent = "Click the button to enable voice commands.";
-        updateDisplay(); // Set initial display to 00:00
-    };
-</script>
+        // --- Event Listeners ---
+        if (recognition) {
+            mainButton.addEventListener('click', () => {
+                if (!audioContext) {
+                    audioContext = new(window.AudioContext || window.webkitAudioContext)();
+                }
+                if (isRunning) {
+                    togglePause();
+                } else {
+                    try {
+                        recognition.start();
+                    } catch (error) {
+                        statusMessage.textContent = "Could not start listening. Please check permissions.";
+                    }
+                }
+            });
+
+            recognition.onstart = () => {
+                mainButton.textContent = "Listening...";
+                mainButton.disabled = true;
+                statusMessage.textContent = "Say your command now...";
+            };
+            recognition.onresult = (event) => {
+                const command = event.results[0][0].transcript.toLowerCase().trim();
+                statusMessage.textContent = `Heard: "${command}"`;
+                processVoiceCommand(command);
+            };
+            recognition.onend = () => {
+                if (!isRunning) {
+                    mainButton.textContent = "Start Voice Control";
+                    mainButton.disabled = false;
+                }
+            };
+            recognition.onerror = (event) => {
+                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                    statusMessage.textContent = "Microphone access denied. Enable it in browser settings.";
+                } else if (event.error === 'no-speech') {
+                    statusMessage.textContent = "Didn't hear anything. Try again.";
+                } else {
+                    statusMessage.textContent = "An error occurred. Please try again.";
+                }
+            };
+        }
+
+        // --- 3. Music Button Listener ---
+        // This handles the play/pause logic for the background music.
+        musicButton.addEventListener('click', () => {
+            if (!audioContext) {
+                audioContext = new(window.AudioContext || window.webkitAudioContext)();
+            }
+            isMusicPlaying = !isMusicPlaying;
+            if (isMusicPlaying) {
+                backgroundMusic.play();
+                musicButton.textContent = "Pause Music";
+            } else {
+                backgroundMusic.pause();
+                musicButton.textContent = "Play Music";
+            }
+        });
+    </script>
 </body>
 </html>
